@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #define DBUF_INIT {NULL, 0}
+#define CTRL_KEY(k) ((k) & 0x1f)
 
 /*--- data ---*/
 struct termios orig_term;
@@ -31,6 +32,9 @@ void enterRawMode() {
 }
 
 void die(char *message) {
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
+
     perror(message);
     exit(-1);
 }
@@ -59,6 +63,7 @@ char inputKey() {
     while (!(status = read(STDIN_FILENO, &ch, 1))) {
         if (status == -1 && errno != EAGAIN) die("read");
     }
+
     return ch;
 }
 
@@ -67,8 +72,11 @@ void processKeyPress(struct dbuf *row) {
     switch(ch) {
         case '\x0D':
             dbufAppend(row + ts.curRow, "\r\n", 2);
+            ts.curRow++;
             break;
-        case 'q':
+        case CTRL_KEY('q'):
+            write(STDOUT_FILENO, "\x1b[2J", 4);
+            write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
         default:
             dbufAppend(row + ts.curRow, &ch, 1);
