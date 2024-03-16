@@ -42,20 +42,14 @@ struct dbuf {
 };
 
 void dbufAppend(struct dbuf *dbuf, const char *data, unsigned int length) {
-    if (!dbuf->data) {
-        dbuf->data = malloc(length);
-    } else {
-        dbuf->data = realloc(dbuf->data, dbuf->length + length);
-    }
+    dbuf->data = realloc(dbuf->data, dbuf->length + length);
     if (!dbuf->data) die("dbufAppend");
-    for (int i = 0; i < length; i++)
-        dbuf->data[i + dbuf->length] = data[i];
+    memcpy(&dbuf->data[dbuf->length], data, length);
     dbuf->length += length;
 }
 
 void dbufFree(struct dbuf *dbuf) {
     free(dbuf->data);
-    dbuf->data = NULL;
 }
 
 /*--- input process ---*/
@@ -68,16 +62,16 @@ char inputKey() {
     return ch;
 }
 
-void processKeyPress(struct dbuf *dbuf) {
+void processKeyPress(struct dbuf *row) {
     char ch = inputKey();
     switch(ch) {
         case '\x0D':
-            dbufAppend(dbuf, "\r\n", 2);
+            dbufAppend(row + ts.curRow, "\r\n", 2);
             break;
         case 'q':
             exit(0);
         default:
-            dbufAppend(dbuf, &ch, 1);
+            dbufAppend(row + ts.curRow, &ch, 1);
             break;
     }
 }
@@ -108,19 +102,30 @@ void getCursorPosition() {
         ts.curRow = ts.curRow + ( buf[i] - '0' ) * pow;
 }
 
-void refreshScreen(struct dbuf *dbuf) {
-    getCursorPosition();
+void drawRows(struct dbuf *dbuf, struct dbuf *row) {
     for (int i = 0; i < ts.rows; i++) {
-        dbufAppend(dbuf, "\033[K", 3);
         dbufAppend(dbuf, "~", 1);
-        if (i + 1 != ts.rows) {
+
+        dbufAppend(dbuf, "\x1b[K", 3);
+        dbufAppend(dbuf, (row+i)->data, (row+i)->length);
+        if (i < ts.rows - 1)
             dbufAppend(dbuf, "\r\n", 2);
-        }
-        dbufAppend(dbuf, "\033[1B", 4);
     }
-    char pos[30];
-    sprintf(pos, "\033[%d;%dH", ts.curRow, ts.curCol);
-    dbufAppend(dbuf, pos, strlen(pos));
+}
+
+void refreshScreen(struct dbuf *row) {
+    struct dbuf dbuf = DBUF_INIT;
+
+    dbufAppend(&dbuf, "\x1b[?25l", 6);
+    dbufAppend(&dbuf, "\x1b[H", 3);
+
+    drawRows(&dbuf, row);
+
+    dbufAppend(&dbuf, "\x1b[H", 3);
+    dbufAppend(&dbuf, "\x1b[?25h", 6);
+
+    write(STDOUT_FILENO, dbuf.data, dbuf.length);
+    dbufFree(&dbuf);
 }
 
 /*--- init ---*/
@@ -137,12 +142,13 @@ void initConfig() {
 int main() {
     initConfig();
     enterRawMode();
-    write(STDOUT_FILENO, "\033[2J", 4);
+
+    struct dbuf *row = calloc(sizeof(struct dbuf), ts.rows);
+
+    write(STDOUT_FILENO, "\033[2J\033[0;1H", 10);
+
     while (1) {
-        struct dbuf dbuf = DBUF_INIT;
-        refreshScreen(&dbuf);
-        processKeyPress(&dbuf);
-        write(STDOUT_FILENO, dbuf.data, dbuf.length);
-        dbufFree(&dbuf);
+        refreshScreen(row);
+        processKeyPress(row);
     }
 }
