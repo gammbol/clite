@@ -71,8 +71,8 @@ void processKeyPress(struct dbuf *row) {
     char ch = inputKey();
     switch(ch) {
         case '\x0D':
-            dbufAppend(row + ts.curRow, "\r\n", 2);
-            ts.curRow++;
+            if (ts.curRow < ts.rows - 1)
+                ts.curRow++;
             break;
         case CTRL_KEY('q'):
             write(STDOUT_FILENO, "\x1b[2J", 4);
@@ -129,7 +129,10 @@ void refreshScreen(struct dbuf *row) {
 
     drawRows(&dbuf, row);
 
-    dbufAppend(&dbuf, "\x1b[H", 3);
+    char buf[30];
+    snprintf(buf, sizeof(buf), "\033[%d;%d", ts.curRow, ts.curCol);
+    dbufAppend(&dbuf, buf, strlen(buf));
+
     dbufAppend(&dbuf, "\x1b[?25h", 6);
 
     write(STDOUT_FILENO, dbuf.data, dbuf.length);
@@ -152,8 +155,6 @@ int main() {
     enterRawMode();
 
     struct dbuf *row = calloc(sizeof(struct dbuf), ts.rows);
-
-    write(STDOUT_FILENO, "\033[2J\033[0;1H", 10);
 
     while (1) {
         refreshScreen(row);
