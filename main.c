@@ -69,7 +69,14 @@ void dbufFree(struct dbuf *dbuf) {
 /*--- backspacing ---*/
 void delChar(struct dbuf *row, int at) {
     if (row->length <= 0) return;
-    memmove(&row->data[at], &row->data[at + 1], strlen(row->data) - at);
+
+    char res[row->length - 1];
+    for (int i = 0, a = 0; i < row->length - 1; i++) {
+        if (i == at) a++;
+        res[i] = row->data[i + a];
+    }
+    strcpy(row->data, res);
+
     row->length--;
 }
 
@@ -169,6 +176,10 @@ void getCursorPosition() {
         ts.curRow = ts.curRow + ( buf[i] - '0' ) * pow;
 }
 
+void printStatus(struct dbuf* dbuf) {
+
+}
+
 void drawRows(struct dbuf *dbuf, struct dbuf *row) {
     for (int i = 0; i < ts.rows; i++) {
         dbufAppend(dbuf, "~", 1);
@@ -209,7 +220,12 @@ void initConfig() {
 }
 
 /*--- main ---*/
-int main() {
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        printf("Usage: clite file.txt\n");
+        return 0;
+    }
+
     initConfig();
     enterRawMode();
 
