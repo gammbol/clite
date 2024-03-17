@@ -66,6 +66,13 @@ void dbufFree(struct dbuf *dbuf) {
     free(dbuf->data);
 }
 
+/*--- backspacing ---*/
+void delChar(struct dbuf *row, int at) {
+    if (row->length <= 0) return;
+    memmove(&row->data[at], &row->data[at + 1], strlen(row->data) - at);
+    row->length--;
+}
+
 /*--- input process ---*/
 int inputKey() {
     char ch;
@@ -84,6 +91,7 @@ int inputKey() {
             case 'D': return ARROW_LEFT;
         }
     }
+
 
     return ch;
 }
@@ -111,12 +119,18 @@ void processKeyPress(struct dbuf *row) {
             if (ts.curCol > 0) ts.curCol--;
             break;
         case ARROW_RIGHT:
-            if (ts.curCol < ts.cols - 1) ts.curCol++;
+            if (ts.curCol < (row + ts.curCol)->length) ts.curCol++;
             break;
         case ARROW_DOWN:
             if (ts.curRow < ts.rows - 1) {
                 ts.curRow++;
                 ts.curCol = 0;
+            }
+            break;
+        case '\x7F':
+            if (ts.curCol > 0) {
+                ts.curCol--;
+                delChar(row + ts.curRow, ts.curCol);
             }
             break;
         default:
