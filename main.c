@@ -9,6 +9,13 @@
 #define DBUF_INIT {NULL, 0}
 #define CTRL_KEY(k) ((k) & 0x1f)
 
+enum {
+    ARROW_UP = 1000,
+    ARROW_DOWN,
+    ARROW_LEFT,
+    ARROW_RIGHT,
+};
+
 /*--- data ---*/
 struct termios orig_term;
 struct termStat {
@@ -25,7 +32,10 @@ void enterRawMode() {
     atexit(exitRawMode);
     tcgetattr(0, &orig_term);
     struct termios new_term = orig_term;
-    cfmakeraw(&new_term);
+    new_term.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    new_term.c_oflag &= ~(OPOST);
+    new_term.c_cflag |= (CS8);
+    new_term.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
     new_term.c_cc[VMIN] = 0;
     new_term.c_cc[VTIME] = 1;
     tcsetattr(0, TCSAFLUSH, &new_term);
@@ -57,29 +67,64 @@ void dbufFree(struct dbuf *dbuf) {
 }
 
 /*--- input process ---*/
-char inputKey() {
+int inputKey() {
     char ch;
     ssize_t status;
     while (!(status = read(STDIN_FILENO, &ch, 1))) {
         if (status == -1 && errno != EAGAIN) die("read");
     }
 
+    if (ch == '\033') {
+        char nav[2];
+        read(STDIN_FILENO, nav, 2);
+        switch (nav[1]) {
+            case 'A': return ARROW_UP;
+            case 'B': return ARROW_DOWN;
+            case 'C': return ARROW_RIGHT;
+            case 'D': return ARROW_LEFT;
+        }
+    }
+
     return ch;
 }
 
 void processKeyPress(struct dbuf *row) {
-    char ch = inputKey();
+    int ch = inputKey();
     switch(ch) {
         case '\x0D':
-            if (ts.curRow < ts.rows - 1)
+            if (ts.curRow < ts.rows - 1) {
                 ts.curRow++;
+                ts.curCol = 0;
+            }
             break;
         case CTRL_KEY('q'):
             write(STDOUT_FILENO, "\x1b[2J", 4);
             write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
+        case ARROW_UP:
+            if (ts.curRow > 0) {
+                ts.curRow--;
+                ts.curCol = 0;
+            }
+            break;
+        case ARROW_LEFT:
+            if (ts.curCol > 0) ts.curCol--;
+            break;
+        case ARROW_RIGHT:
+            if (ts.curCol < ts.cols - 1) ts.curCol++;
+            break;
+        case ARROW_DOWN:
+            if (ts.curRow < ts.rows - 1) {
+                ts.curRow++;
+                ts.curCol = 0;
+            }
+            break;
         default:
-            dbufAppend(row + ts.curRow, &ch, 1);
+            if (ts.curCol < ts.cols - 1) {
+                char c = (char) ch;
+                dbufAppend(row + ts.curRow, &c, 1);
+                ts.curCol++;
+            }
             break;
     }
 }
