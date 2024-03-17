@@ -103,10 +103,10 @@ void getCursorPosition() {
 
     if (i < 2) die("getCursorPosition");
 
-    for( i -= 2, pow = 1; buf[i] != ';'; i--, pow *= 10)
+    for (i -= 2, pow = 1; buf[i] != ';'; i--, pow *= 10)
         ts.curCol = ts.curCol + ( buf[i] - '0' ) * pow;
 
-    for( i-- , pow = 1; buf[i] != '['; i--, pow *= 10)
+    for (i-- , pow = 1; buf[i] != '['; i--, pow *= 10)
         ts.curRow = ts.curRow + ( buf[i] - '0' ) * pow;
 }
 
@@ -130,7 +130,7 @@ void refreshScreen(struct dbuf *row) {
     drawRows(&dbuf, row);
 
     char buf[30];
-    snprintf(buf, sizeof(buf), "\033[%d;%d", ts.curRow, ts.curCol);
+    snprintf(buf, sizeof(buf), "\033[%d;%dH", ts.curRow + 1, ts.curCol + 2);
     dbufAppend(&dbuf, buf, strlen(buf));
 
     dbufAppend(&dbuf, "\x1b[?25h", 6);
